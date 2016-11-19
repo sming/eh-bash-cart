@@ -53,26 +53,36 @@ public class BashCartesianProducer {
 		if (firstIdx == -1)
 			return firstIdx;
 		
-		int closingIdx = findClosingCurly(firstIdx, s);
+		int closingIdx = findClosingCurlyIdx(s);
 		
 		//TODO implement
 		return 0;
 	}
-
-	public int findClosingCurly(int firstIdx, String s) {
-		int i = firstIdx + 1;	// start scanning immediately after the open curly in question
-		int openCount = 1;
-		while (i++ < s.length() && openCount > 0) {
+	
+	public int findOpeningCurly(String s) {
+		return s.indexOf('{');
+	}
+	
+	public int findClosingCurlyIdx(String s) {
+		int idxOpener = findOpeningCurly(s);
+		if (idxOpener == -1)
+			return -1;
+		
+		int i = idxOpener + 1;	// don't count the opener again
+		int openCount = 1;		// we've found the first opener
+		while (openCount > 0 && i < s.length()) {
 			if (s.charAt(i) == '{')
 				++openCount;
 			else if (s.charAt(i) == '}')
 				--openCount;
+			
+			++i;
 		}
 		
-		if (i == s.length() - 1)
+		if (openCount > 0 && i >= s.length())
 			return -1;		// we didn't find a closing curly - malformed string
 		else
-			return i;
+			return i - 1;
 	}
 	
 }
