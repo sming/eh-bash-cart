@@ -2,7 +2,7 @@ package org.psk.playground;
 
 import org.junit.Test;
 
-public class AllTestsTest {
+public class CurliesTest {
 
 	@Test
 	public void testFindClosingCurly() {

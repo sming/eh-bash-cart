@@ -56,7 +56,7 @@ public class BashCartesianProducer {
 	public static void main(String[] args) {
 		BashCartesianProducer p = new BashCartesianProducer();
 		List<String> s = p.expand("a{b,c}d");
-		String output = p.print(s);
+		String output = p.render(s);
 		System.out.println("TODO " + output);
 	}
 	
@@ -64,8 +64,12 @@ public class BashCartesianProducer {
 		EMPTY_STRING_LIST.add("");
 	}
 	
-	private String print(List<String> s) {
+	public String render(List<String> s) {
 		return String.join(" ", s);
+	}
+	
+	public String render(String s) {
+		return String.join(" ", expand(s));
 	}
 	
 	/**
@@ -90,7 +94,7 @@ public class BashCartesianProducer {
 	 * @param sb
 	 * @return
 	 */
-	private ArrayList<String> expand(String s) {
+	public ArrayList<String> expand(String s) {
 		if (s == null || s.isEmpty())
 			return EMPTY_STRING_LIST;
 		
@@ -104,7 +108,7 @@ public class BashCartesianProducer {
 		// TODO everything wants to be an ArrayList cos of array reification rules (I'd rather pass List<>).
 		ArrayList<String> ambleExpandResult = new ArrayList<String>();
 		if (ambleIdx != -1) {	// no "amble" if no opening brackets
-			String amb = s.substring(ambleIdx, postAmbleIdx);	// grab just the Amble text	cd{e,f}gh
+			String amb = s.substring(ambleIdx+1, postAmbleIdx);	// grab just the Amble text	cd{e,f}gh
 			
 			// If Amble itself has an Amble, recurse... Our example would recurse with {e,f}
 			if (findOpeningCurlyIdx(amb) != -1) {
@@ -114,8 +118,9 @@ public class BashCartesianProducer {
 				ambleExpandResult.addAll(Arrays.asList(amb.split(SEPARATOR_CHAR)));
 			}
 		} else {
+			// I *think* we can return now cos there are no curlies at all.
 			// So there wasn't an "Amble" (i.e. curlies) so just add the text. TODO this doesn't feel right.
-			ambleExpandResult.add(s);
+			return toList(s);
 		}
 		
 		/////////////////////////////
@@ -135,7 +140,7 @@ public class BashCartesianProducer {
 		if (idxPostAmbleEnd == -1) {
 			// Great, no more expansion is necessary. Just postpend the postamble per element and return.
 		    String postamble = s.substring(postAmbleIdx);
-		    return postpendToEach(new ArrayList<String>(Arrays.asList(postamble)), preAmblePlusAmble);
+		    return postpendToEach(toList(postamble), preAmblePlusAmble);
 		}
 		
 		/////////////////////////////
@@ -147,40 +152,35 @@ public class BashCartesianProducer {
 	    return preAmblePlusAmble;
 	}
 	
-	private ArrayList<String> postpendToEach(ArrayList<String> elements, ArrayList<String> textToPostpend) {
+	private ArrayList<String> prependToEach(String toAdd, ArrayList<String> l) {
+		return concatToEach(l, toList(toAdd), true);
+	}
+
+	private ArrayList<String> postpendToEach(String toAdd, ArrayList<String> l) {
+		return concatToEach(l, toList(toAdd), false);
+	}
+
+	private ArrayList<String> postpendToEach(ArrayList<String> elements, ArrayList<String> toAdd) {
+		return concatToEach(elements, toAdd, false);
+	}
+	
+	private ArrayList<String> prependToEach(ArrayList<String> elements, ArrayList<String> toAdd) {
+		return concatToEach(elements, toAdd, true);
+	}
+	
+	private ArrayList<String> concatToEach(ArrayList<String> elements, ArrayList<String> toAdd, boolean pre) {
 		ArrayList<String> result = new ArrayList<>();
+		if (toAdd == null || toAdd.isEmpty())
+			return result;
 		
 		// TODO use map or some other builtin function to make the product
 		for (String s : elements)
-			for (String t : textToPostpend) 
-				result.add(s + t);
+			for (String t : toAdd) 
+				result.add(pre ? t + s : s + t);
 		
 		return result;
 	}
-	private ArrayList<String> prependToEach(String toAdd, ArrayList<String> l) {
-		return concatToEach(toAdd, l, true);
-	}
 	
-	@Deprecated
-	private ArrayList<String> postpendToEach(String toAdd, ArrayList<String> l) {
-		return concatToEach(toAdd, l, false);
-	}
-	
-	
-	private ArrayList<String> concatToEach(String toAdd, ArrayList<String> l, boolean pre) {
-		// TODO use a cleaner approach to appending string per element
-//		Stream<String> ss = expandedAmble.stream().map(s -> s + preamble);
-//		String[] ls = ss.toArray(String[]::new);
-		if (toAdd == null || toAdd.length() == 0)
-			return l;
-		
-		ArrayList<String> retVal = new ArrayList<>();
-		for (String s : l)
-			retVal.add(pre ? toAdd + s : s + toAdd);
-		
-		return retVal;
-	}
-
 	private int findOpeningCurlyIdx(String s) {
 		return s.substring(0).indexOf('{');
 	}
@@ -220,5 +220,9 @@ public class BashCartesianProducer {
 			return -1;		// we didn't find a closing curly - malformed string
 		else
 			return i - 1;
+	}
+	
+	private ArrayList<String> toList(String s) {
+		return new ArrayList<String>(Arrays.asList(s));
 	}
 }
