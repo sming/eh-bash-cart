@@ -14,7 +14,7 @@ $ echo a{b,c{d,e,f}g,h}ij{k,l}
 abijk abijl acdgijk acdgijl acegijk acegijl acfgijk acfgijl ahijk ahijl
 
 
-HIGH-LEVEL DESIGN --
+HIGH-LEVEL DESIGN -------------------------------------
 Segregate the text into 3 sections: 
 Preamble (stuff before the first open brace),   
 Postamble (stuff after the matching closing brace) and 
@@ -26,6 +26,13 @@ Next, prepend the Preamble to each element of the expanded Amble.
 Then if Postamble doesn't need expanding, just postpend it to each element. Else, recurse-expand it and
 append the results.
 Then space-separated print out result.
+
+PERFORMANCE -------------------------------------
+Assuming reasonable input, the recursion won't present a threat to the stack - it's just not that deep. 
+Add'ing to ArrayList is relatively cheap. Could use StringBuilders but then you're working with more mutable
+objects which makes it more difficult and less flexible.
+Order of complexity I'm not sure about. It depends on the number of sequential expandable sequences and the
+depth of the recursion into sub-sequences (or "Amble"s). 
  */
 public class BashCartesianProducer {
 	public static final String SEPARATOR_CHAR = ",";
@@ -74,7 +81,7 @@ public class BashCartesianProducer {
 		}
 		
 		/////////////////////////////
-		// Next we prepend PreAmble if its present
+		// Next we prepend PreAmble if it's present
 		/////////////////////////////
 	    String preamble = s.substring(0, ambleIdx);  
 	    ArrayList<String> preAmblePlusAmble = prependToEach(preamble, ambleExpandResult);
@@ -162,5 +169,4 @@ public class BashCartesianProducer {
 		else
 			return i - 1;
 	}
-	
 }
