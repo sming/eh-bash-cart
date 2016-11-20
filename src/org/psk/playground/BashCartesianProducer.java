@@ -82,6 +82,8 @@ public class BashCartesianProducer {
 		
 		/////////////////////////////
 		// Next we prepend PreAmble if it's present
+		// We we know Preamble doesn't need expanding since it does not contain an open curly by definition.
+		// So the only multiple here is Amble. 
 		/////////////////////////////
 	    String preamble = s.substring(0, ambleIdx);  
 	    ArrayList<String> preAmblePlusAmble = prependToEach(preamble, ambleExpandResult);
@@ -94,22 +96,34 @@ public class BashCartesianProducer {
 		int idxPostAmbleEnd = findOpeningCurlyIdx(postAmbleIdx, s);
 		if (idxPostAmbleEnd == -1) {
 			// Great, no more expansion is necessary. Just postpend the postamble per element and return.
-		    String postamble = s.substring(postAmbleIdx);  
-		    return postpendToEach(postamble, preAmblePlusAmble);
+		    String postamble = s.substring(postAmbleIdx);
+		    return postpendToEach(new ArrayList<String>(Arrays.asList(postamble)), preAmblePlusAmble);
 		}
 		
 		/////////////////////////////
 		// Right, so there is another chunk of curlies that need expanding after this chunk e.g. {k,l}mn in
 	    // our example. So we need to recurse again.
 		/////////////////////////////
-		preAmblePlusAmble.addAll(expand(s.substring(idxPostAmbleEnd)));
+		postpendToEach(preAmblePlusAmble, expand(s.substring(idxPostAmbleEnd)));
+		//preAmblePlusAmble.addAll(expand(s.substring(idxPostAmbleEnd)));
 	    return preAmblePlusAmble;
 	}
 	
+	private ArrayList<String> postpendToEach(ArrayList<String> elements, ArrayList<String> textToPostpend) {
+		ArrayList<String> result = new ArrayList<>();
+		
+		// TODO use map or some other builtin function to make the product
+		for (String s : elements)
+			for (String t : textToPostpend) 
+				result.add(s + t);
+		
+		return result;
+	}
 	private ArrayList<String> prependToEach(String toAdd, ArrayList<String> l) {
 		return concatToEach(toAdd, l, true);
 	}
 	
+	@Deprecated
 	private ArrayList<String> postpendToEach(String toAdd, ArrayList<String> l) {
 		return concatToEach(toAdd, l, false);
 	}
