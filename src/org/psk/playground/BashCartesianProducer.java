@@ -13,25 +13,30 @@ abdehi abdfhi abdghi acdehi acdfhi acdghi
 $ echo a{b,c{d,e,f}g,h}ij{k,l}
 abijk abijl acdgijk acdgijl acegijk acegijl acfgijk acfgijl ahijk ahijl
 
- * 
-Segregate the text into 3 sections: 
-preamble (stuff before an open brace),   
-postamble (stuff after the matching close brace) and 
-amble (stuff after preamble, and before postamble).  
-   
-(* R ~ recursively)
 
-R { Expand amble (to list). }		return exp-amble with preamble appended to each item
-R { Expand postamble (to list). }	result of above with postamble appended to each item
- * @author peter
- *
+HIGH-LEVEL DESIGN --
+Segregate the text into 3 sections: 
+Preamble (stuff before the first open brace),   
+Postamble (stuff after the matching closing brace) and 
+Amble (stuff after preamble, and before postamble).  
+
+Once you've done that, 
+recursively expand the Amble since it may contain curlies & commas and thus sub-Ambles.
+Next, prepend the Preamble to each element of the expanded Amble.
+Then if Postamble doesn't need expanding, just postpend it to each element. Else, recurse-expand it and
+append the results.
+Then space-separated print out result.
  */
 public class BashCartesianProducer {
 	public static final String SEPARATOR_CHAR = ",";
 	public static void main(String[] args) {
 		BashCartesianProducer p = new BashCartesianProducer();
 		List<String> s = p.expand("a{b,c}d");
-		System.out.println("TODO " + s);
+		String output = p.print(s);
+		System.out.println("TODO " + output);
+	}
+	private String print(List<String> s) {
+		return String.join(" ", s);
 	}
 	// 
 	/**
@@ -63,6 +68,9 @@ public class BashCartesianProducer {
 				// OK If we're here we know there isn't a sub Amble so split-out by the special char
 				ambleExpandResult.addAll(Arrays.asList(amb.split(SEPARATOR_CHAR)));
 			}
+		} else {
+			// So there wasn't an "Amble" (i.e. curlies) so just add the text. TODO this doesn't feel right.
+			ambleExpandResult.add(s);
 		}
 		
 		/////////////////////////////
