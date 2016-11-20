@@ -1,6 +1,9 @@
 package org.psk.playground;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * 
@@ -18,53 +21,120 @@ amble (stuff after preamble, and before postamble).
    
 (* R ~ recursively)
 
-R-{1. Expand amble. 2. return preamble + exp-amble.}
-R-{1. Expand postamble. 2. result so far + exp-post}
+R { Expand amble (to list). }		return exp-amble with preamble appended to each item
+R { Expand postamble (to list). }	result of above with postamble appended to each item
  * @author peter
  *
  */
 public class BashCartesianProducer {
+	public static final String SEPARATOR_CHAR = ",";
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		
 		BashCartesianProducer p = new BashCartesianProducer();
-		String s = p.produce("a{b,c}d");
+		List<String> s = p.expand("a{b,c}d");
 		System.out.println("TODO " + s);
 	}
-
-	private String produce(String string) {
-		StringBuilder sb = new StringBuilder();
-		//TODO implement
-		//return getAmble(0, 0, sb, string);
-		return "";
-	}
-
 	// 
 	/**
-	 * take a string like ab{c,d{e,f}g}h 
-	 * and return c,d{e,f}g - everything inside the first curly pair. 
-	 * Note that you can't just search backward from the end for a closing curly e.g. a{b}c{d}
+	 * Perform catesian product expansion on a string. 
+	 * The example string we're using in comments is: ab{cd{e,f}gh}ij{k,l}mn
+	 * We assume that all expandable input strings are well-formed i.e. have correct curlies.
 	 * @param string
 	 * @param sb
 	 * @return
 	 */
-	private int getAmble(String s, char c, StringBuilder sb) {//(int i, int numOpenBraces, StringBuilder sb, String string) {
-		int firstIdx = s.indexOf(c);
-		if (firstIdx == -1)
-			return firstIdx;
+	private ArrayList<String> expand(String s) {
+
+		int ambleIdx = findOpeningCurlyIdx(s);		
+		int postAmbleIdx = findMatchingClosingCurlyIdx(s);	// this would be the ...h}i... one 
 		
-		int closingIdx = findClosingCurlyIdx(s);
+		/////////////////////////////
+		// OK, first of all let's expand Amble if it contains curlies and a comma
+		// Our example Amble would be cd{e,f}gh 
+		/////////////////////////////
+		// TODO everything wants to be an ArrayList cos of array reification rules (I'd rather pass List<>).
+		ArrayList<String> ambleExpandResult = new ArrayList<String>();
+		if (ambleIdx != -1) {	// no "amble" if no opening brackets
+			String amb = s.substring(ambleIdx, postAmbleIdx);	// grab just the Amble text	cd{e,f}gh
+			
+			// If Amble itself has an Amble, recurse... Our example would recurse with {e,f}
+			if (findOpeningCurlyIdx(amb) != -1) {
+				ambleExpandResult.addAll(expand(amb));
+			} else {
+				// OK If we're here we know there isn't a sub Amble so split-out by the special char
+				ambleExpandResult.addAll(Arrays.asList(amb.split(SEPARATOR_CHAR)));
+			}
+		}
 		
-		//TODO implement
-		return 0;
+		/////////////////////////////
+		// Next we prepend PreAmble if its present
+		/////////////////////////////
+	    String preamble = s.substring(0, ambleIdx);  
+	    ArrayList<String> preAmblePlusAmble = prependToEach(preamble, ambleExpandResult);
+		    
+	    // NO NEED to expand Postamble because we do it via recursion at the end.
+
+		/////////////////////////////
+		// OK so we have Amble and PostAmble. Postpend PostAmble.
+		/////////////////////////////
+		int idxPostAmbleEnd = findOpeningCurlyIdx(postAmbleIdx, s);
+		if (idxPostAmbleEnd == -1) {
+			// Great, no more expansion is necessary. Just postpend the postamble per element and return.
+		    String postamble = s.substring(postAmbleIdx);  
+		    return postpendToEach(postamble, preAmblePlusAmble);
+		}
+		
+		/////////////////////////////
+		// Right, so there is another chunk of curlies that need expanding after this chunk e.g. {k,l}mn in
+	    // our example. So we need to recurse again.
+		/////////////////////////////
+		preAmblePlusAmble.addAll(expand(s.substring(idxPostAmbleEnd)));
+	    return preAmblePlusAmble;
 	}
 	
-	public int findOpeningCurly(String s) {
-		return s.indexOf('{');
+	private ArrayList<String> prependToEach(String toAdd, ArrayList<String> l) {
+		return concatToEach(toAdd, l, true);
 	}
 	
-	public int findClosingCurlyIdx(String s) {
-		int idxOpener = findOpeningCurly(s);
+	private ArrayList<String> postpendToEach(String toAdd, ArrayList<String> l) {
+		return concatToEach(toAdd, l, false);
+	}
+	
+	
+	private ArrayList<String> concatToEach(String toAdd, ArrayList<String> l, boolean pre) {
+		// TODO use a cleaner approach to appending string per element
+//		Stream<String> ss = expandedAmble.stream().map(s -> s + preamble);
+//		String[] ls = ss.toArray(String[]::new);
+		if (toAdd == null || toAdd.length() == 0)
+			return l;
+		
+		ArrayList<String> retVal = new ArrayList<>();
+		for (String s : l)
+			retVal.add(pre ? toAdd + s : s + toAdd);
+		
+		return retVal;
+	}
+
+	private int findOpeningCurlyIdx(String s) {
+		return s.substring(0).indexOf('{');
+	}
+	
+	private int findOpeningCurlyIdx(int startIdx, String s) {
+		return s.substring(startIdx).indexOf('{');
+	}
+	
+	int findMatchingClosingCurlyIdx(String s) {
+		return findClosingCurlyIdx(0, s);
+	}
+	
+	/**
+	 * Given a string (say ab{c,d{e,f}gh}ij, return the index of the ..h}i.. bracket i.e. the closing bracket
+	 * that matches the first opening bracket.
+	 * @param startIdx
+	 * @param s
+	 * @return
+	 */
+	public int findClosingCurlyIdx(int startIdx, String s) {
+		int idxOpener = findOpeningCurlyIdx(startIdx, s);
 		if (idxOpener == -1)
 			return -1;
 		
