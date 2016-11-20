@@ -33,29 +33,67 @@ Add'ing to ArrayList is relatively cheap. Could use StringBuilders but then you'
 objects which makes it more difficult and less flexible.
 Order of complexity I'm not sure about. It depends on the number of sequential expandable sequences and the
 depth of the recursion into sub-sequences (or "Amble"s). 
+Something like 
+O(N) = N^M where N is the number of elements in a contiguous sequence (non-expanded) and M is the Max of 
+(max depth of the sub-expansions OR the max number of sequential expansions).    
+
+TODO -------------------------------------
+- decompose into a couple more classes
+- write a bucketload of unit tests
+- logging
+- make more SOLID ((single responsibility, open-closed, Liskov substitution, interface segregation and 
+dependency inversion) e.g.
+	- single responsibility: decompose this big class
+	- open-closed: add extension points for specialisation
+	- Liskov substitution: ensure we obey this TRULY IS A maxim
+	- interface segregation: doesn't really apply, the interface is tiny
+	- and dependency inversion: don't new-up ArrayLists but allow a List<String> factory to be injected
  */
 public class BashCartesianProducer {
 	public static final String SEPARATOR_CHAR = ",";
+	private static final ArrayList<String> EMPTY_STRING_LIST = new ArrayList<String>();
+	
 	public static void main(String[] args) {
 		BashCartesianProducer p = new BashCartesianProducer();
 		List<String> s = p.expand("a{b,c}d");
 		String output = p.print(s);
 		System.out.println("TODO " + output);
 	}
+	
+	static {
+		EMPTY_STRING_LIST.add("");
+	}
+	
 	private String print(List<String> s) {
 		return String.join(" ", s);
 	}
-	// 
+	
 	/**
-	 * Perform catesian product expansion on a string. 
-	 * The example string we're using in comments is: ab{cd{e,f}gh}ij{k,l}mn
-	 * We assume that all expandable input strings are well-formed i.e. have correct curlies.
-	 * @param string
+	 * expand(s)
+	 * 
+	 * Perform Bash shell catesian product expansion on a string. 
+	 * 
+	 * We do assume that all expandable input strings have correctly balanced curlies i.e. a { will have a }.
+	 * 
+	 * Examples:
+	 * $ echo a{b,c}d{e,f,g}hi
+	 * abdehi abdfhi abdghi acdehi acdfhi acdghi
+	 * $ echo a{b,c{d,e,f}g,h}ij{k,l}
+	 * abijk abijl acdgijk acdgijl acegijk acegijl acfgijk acfgijl ahijk ahijl
+	 *
+	 * So from the above we can see that there can be multiple sequential expansions e.g. ..{a,b}..{y,z}.. and
+	 * also sub-expansions e.g. ..{a,b{c,d}e}.., both of which cases we handle via recursion. This is described
+	 * above in the class comment.
+	 * 
+	 * !!! The example string we're using in comments throughout the implementation is: ab{cd{e,f}gh}ij{k,l}mn
+	 * @param s the string to expand into a List<String.
 	 * @param sb
 	 * @return
 	 */
 	private ArrayList<String> expand(String s) {
-
+		if (s == null || s.isEmpty())
+			return EMPTY_STRING_LIST;
+		
 		int ambleIdx = findOpeningCurlyIdx(s);		
 		int postAmbleIdx = findMatchingClosingCurlyIdx(s);	// this would be the ...h}i... one 
 		
