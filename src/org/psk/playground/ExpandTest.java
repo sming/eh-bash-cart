@@ -31,4 +31,12 @@ public class ExpandTest {
 		String s = "ab{cd,efg}hi";
 		org.junit.Assert.assertEquals("abcdhi abefghi", p.render(s));
 	}
+
+	@Test
+	public void testExpandSequentialCurlies() {
+		BashCartesianProducer p = new BashCartesianProducer();
+		String s = "a{b,c}d{e,f}g";
+		String res = p.render(s);
+		org.junit.Assert.assertEquals("abdeg abdfg acdeg acdfg", res);
+	}
 }

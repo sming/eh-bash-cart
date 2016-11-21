@@ -99,23 +99,23 @@ public class BashCartesianProducer {
 			return EMPTY_STRING_LIST;
 		
 		int ambleIdx = findOpeningCurlyIdx(s);		
-		int postAmbleIdx = findMatchingClosingCurlyIdx(s);	// this would be the ...h}i... one 
+		int postAmbleIdx = findPostAmbleStartIdx(s);	// this would be the ...h}i... one 
 		
 		/////////////////////////////
 		// OK, first of all let's expand Amble if it contains curlies and a comma
 		// Our example Amble would be cd{e,f}gh 
 		/////////////////////////////
 		// TODO everything wants to be an ArrayList cos of array reification rules (I'd rather pass List<>).
-		ArrayList<String> ambleExpandResult = new ArrayList<String>();
+		ArrayList<String> ambleExpandResult = null;
 		if (ambleIdx != -1) {	// no "amble" if no opening brackets
-			String amb = s.substring(ambleIdx+1, postAmbleIdx);	// grab just the Amble text	cd{e,f}gh
+			String amb = s.substring(ambleIdx+1, postAmbleIdx-1);	// grab just the Amble text	cd{e,f}gh
 			
 			// If Amble itself has an Amble, recurse... Our example would recurse with {e,f}
 			if (findOpeningCurlyIdx(amb) != -1) {
-				ambleExpandResult.addAll(expand(amb));
+				ambleExpandResult = expand(amb);
 			} else {
 				// OK If we're here we know there isn't a sub Amble so split-out by the special char
-				ambleExpandResult.addAll(Arrays.asList(amb.split(SEPARATOR_CHAR)));
+				ambleExpandResult = toList(amb.split(SEPARATOR_CHAR));
 			}
 		} else {
 			// I *think* we can return now cos there are no curlies at all.
@@ -129,34 +129,35 @@ public class BashCartesianProducer {
 		// So the only multiple here is Amble. 
 		/////////////////////////////
 	    String preamble = s.substring(0, ambleIdx);  
-	    ArrayList<String> preAmblePlusAmble = prependToEach(preamble, ambleExpandResult);
+	    ArrayList<String> preAmblePlusAmble = prependToEach(ambleExpandResult, preamble);
 		    
 	    // NO NEED to expand Postamble because we do it via recursion at the end.
 
 		/////////////////////////////
-		// OK so we have Amble and PostAmble. Postpend PostAmble.
+		// OK so we have Amble and PostAmble. Postpend PostAmble. If there aren't any more 
+	    // expandable parts (i.e. any more open curlies) then just append and we're done here.  
 		/////////////////////////////
-		int idxPostAmbleEnd = findOpeningCurlyIdx(postAmbleIdx, s);
-		if (idxPostAmbleEnd == -1) {
-			// Great, no more expansion is necessary. Just postpend the postamble per element and return.
+		if (!hasOpeningCurly(postAmbleIdx, s)) {
+			// Great, no more expansion is necessary i.e. we didn't find another open curly.
+			// Just postpend the postamble per element and return.
 		    String postamble = s.substring(postAmbleIdx);
-		    return postpendToEach(toList(postamble), preAmblePlusAmble);
+		    return postpendToEach(preAmblePlusAmble, toList(postamble));
 		}
 		
 		/////////////////////////////
-		// Right, so there is another chunk of curlies that need expanding after this chunk e.g. {k,l}mn in
-	    // our example. So we need to recurse again.
+		// Right, so there is another chunk of curlies that need expanding after this chunk 
+		// e.g. {k,l}mn in our example. So we need to recurse again on just that bit of text - which 
+		// is the substring(findOpening.. bit.
 		/////////////////////////////
-		postpendToEach(preAmblePlusAmble, expand(s.substring(idxPostAmbleEnd)));
-		//preAmblePlusAmble.addAll(expand(s.substring(idxPostAmbleEnd)));
-	    return preAmblePlusAmble;
+		return postpendToEach(preAmblePlusAmble, expand(s.substring(findOpeningCurlyIdx(postAmbleIdx, s, true))));
 	}
 	
-	private ArrayList<String> prependToEach(String toAdd, ArrayList<String> l) {
+	private ArrayList<String> prependToEach(ArrayList<String> l, String toAdd) {
 		return concatToEach(l, toList(toAdd), true);
 	}
 
-	private ArrayList<String> postpendToEach(String toAdd, ArrayList<String> l) {
+	@Deprecated	// remove if unused
+	private ArrayList<String> postpendToEach(ArrayList<String> l, String toAdd) {
 		return concatToEach(l, toList(toAdd), false);
 	}
 
@@ -164,6 +165,7 @@ public class BashCartesianProducer {
 		return concatToEach(elements, toAdd, false);
 	}
 	
+	@Deprecated	// remove if unused
 	private ArrayList<String> prependToEach(ArrayList<String> elements, ArrayList<String> toAdd) {
 		return concatToEach(elements, toAdd, true);
 	}
@@ -174,9 +176,9 @@ public class BashCartesianProducer {
 			return result;
 		
 		// TODO use map or some other builtin function to make the product
-		for (String s : elements)
+		for (String e : elements)
 			for (String t : toAdd) 
-				result.add(pre ? t + s : s + t);
+				result.add(pre ? t + e : e + t);
 		
 		return result;
 	}
@@ -185,12 +187,23 @@ public class BashCartesianProducer {
 		return s.substring(0).indexOf('{');
 	}
 	
-	private int findOpeningCurlyIdx(int startIdx, String s) {
-		return s.substring(startIdx).indexOf('{');
+	private boolean hasOpeningCurly(int startIdx, String s) {
+		return findOpeningCurlyIdx(startIdx, s, false) != -1;
+	}
+	
+	private int findOpeningCurlyIdx(int startIdx, String s, boolean addStartIdx) {
+		// TODO add startIdx?
+		int idx = s.substring(startIdx).indexOf('{');
+		return idx + (addStartIdx ? startIdx : 0);
 	}
 	
 	int findMatchingClosingCurlyIdx(String s) {
 		return findClosingCurlyIdx(0, s);
+	}
+	
+	int findPostAmbleStartIdx(String s) {
+		int idx = findMatchingClosingCurlyIdx(s);
+		return idx == -1 ? -1 : idx + 1;
 	}
 	
 	/**
@@ -201,7 +214,7 @@ public class BashCartesianProducer {
 	 * @return
 	 */
 	public int findClosingCurlyIdx(int startIdx, String s) {
-		int idxOpener = findOpeningCurlyIdx(startIdx, s);
+		int idxOpener = findOpeningCurlyIdx(startIdx, s, false);
 		if (idxOpener == -1)
 			return -1;
 		
@@ -213,16 +226,21 @@ public class BashCartesianProducer {
 			else if (s.charAt(i) == '}')
 				--openCount;
 			
-			++i;
+			if (openCount > 0)
+				++i;	// only advance i if we haven't found it. TODO find way of having only one test on openCount
 		}
 		
 		if (openCount > 0 && i >= s.length())
 			return -1;		// we didn't find a closing curly - malformed string
 		else
-			return i - 1;
+			return i;
 	}
 	
 	private ArrayList<String> toList(String s) {
+		return new ArrayList<String>(Arrays.asList(s));
+	}
+
+	private ArrayList<String> toList(String[] s) {
 		return new ArrayList<String>(Arrays.asList(s));
 	}
 }
