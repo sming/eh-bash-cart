@@ -130,42 +130,45 @@ public class BashCartesianProducer {
 		/////////////////////////////
 	    String preamble = s.substring(0, ambleIdx);  
 	    ArrayList<String> preAmblePlusAmble = prependToEach(ambleExpandResult, preamble);
-		    
-	    // NO NEED to expand Postamble because we do it via recursion at the end.
 
 		/////////////////////////////
-		// OK so we have Amble and PostAmble. Postpend PostAmble. If there aren't any more 
-	    // expandable parts (i.e. any more open curlies) then just append and we're done here.  
+		// OK so we have Amble and PostAmble. Postpend the static part of PostAmble if there is any.
+	    // If there isn't any expandable ambles in the postamble, this static part is all the way
+	    // until the end of the string.
 		/////////////////////////////
-		if (!hasOpeningCurly(postAmbleIdx, s)) {
-			// Great, no more expansion is necessary i.e. we didn't find another open curly.
-			// Just postpend the postamble per element and return.
-		    String postamble = s.substring(postAmbleIdx);
-		    return postpendToEach(preAmblePlusAmble, toList(postamble));
-		}
-		
+	    int idxFirstOpenCurlyPostamble = findOpeningCurlyIdx(postAmbleIdx, s, true);
+	    boolean postambleHasCurly = idxFirstOpenCurlyPostamble != -1;
+	    int idxEndStaticPostamble = 0;
+	    
+	    if (postambleHasCurly)
+	    	idxEndStaticPostamble = idxFirstOpenCurlyPostamble - 1;
+	    else
+	    	idxEndStaticPostamble = s.length() - 1;
+	    
+	    preAmblePlusAmble = postpendToEach(
+	    		preAmblePlusAmble, s.substring(postAmbleIdx, idxEndStaticPostamble + 1));
+
 		/////////////////////////////
-		// Right, so there is another chunk of curlies that need expanding after this chunk 
-		// e.g. {k,l}mn in our example. So we need to recurse again on just that bit of text - which 
-		// is the substring(findOpening.. bit.
+	    // Then prepend everything so far to any expandable remainder of the PostAmble.
 		/////////////////////////////
-		return postpendToEach(preAmblePlusAmble, expand(s.substring(findOpeningCurlyIdx(postAmbleIdx, s, true))));
+	    if (postambleHasCurly)
+	    	return prependToEach(expand(s.substring(idxFirstOpenCurlyPostamble)), preAmblePlusAmble);
+	    else
+	    	return preAmblePlusAmble;
 	}
 	
-	private ArrayList<String> prependToEach(ArrayList<String> l, String toAdd) {
-		return concatToEach(l, toList(toAdd), true);
+	private ArrayList<String> prependToEach(ArrayList<String> elements, String toAdd) {
+		return concatToEach(elements, toList(toAdd), true);
 	}
 
-	@Deprecated	// remove if unused
-	private ArrayList<String> postpendToEach(ArrayList<String> l, String toAdd) {
-		return concatToEach(l, toList(toAdd), false);
+	private ArrayList<String> postpendToEach(ArrayList<String> elements, String toAdd) {
+		return concatToEach(elements, toList(toAdd), false);
 	}
 
 	private ArrayList<String> postpendToEach(ArrayList<String> elements, ArrayList<String> toAdd) {
 		return concatToEach(elements, toAdd, false);
 	}
 	
-	@Deprecated	// remove if unused
 	private ArrayList<String> prependToEach(ArrayList<String> elements, ArrayList<String> toAdd) {
 		return concatToEach(elements, toAdd, true);
 	}
@@ -194,6 +197,9 @@ public class BashCartesianProducer {
 	private int findOpeningCurlyIdx(int startIdx, String s, boolean addStartIdx) {
 		// TODO add startIdx?
 		int idx = s.substring(startIdx).indexOf('{');
+		if (idx == -1)
+			return -1;
+		
 		return idx + (addStartIdx ? startIdx : 0);
 	}
 	
