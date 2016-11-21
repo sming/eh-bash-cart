@@ -2,6 +2,9 @@ package org.psk.playground;
 
 import org.junit.Test;
 
+/**
+ * Tests to exercise curly brace-detection logic 
+ */
 public class CurliesTest {
 
 	@Test

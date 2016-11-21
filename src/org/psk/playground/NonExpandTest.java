@@ -2,6 +2,9 @@ package org.psk.playground;
 
 import org.junit.Test;
 
+/**
+ * Tests that exercise that the logic does not incorrectly expand non-curly-wrapped text
+ */
 public class NonExpandTest {
 
 	@Test
