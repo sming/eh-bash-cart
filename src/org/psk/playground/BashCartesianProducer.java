@@ -3,7 +3,6 @@ package org.psk.playground;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * 
@@ -15,19 +14,33 @@ abijk abijl acdgijk acdgijl acegijk acegijl acfgijk acfgijl ahijk ahijl
 
 
 HIGH-LEVEL DESIGN -------------------------------------
+Confession: I pinched this approach from the bash source code! However that code is really obtuse and performance-obsessed and 
+written in C so the only thing that I got was the concept, via the comments. Honest!
+
 Segregate the text into 3 sections: 
-Preamble (stuff before the first open brace),   
-Postamble (stuff after the matching closing brace) and 
+Preamble (stuff before the first open curly),   
+Postamble (stuff after the matching closing curly) and 
 Amble (stuff after preamble, and before postamble).  
 
-Once you've done that, 
-recursively expand the Amble since it may contain curlies & commas and thus sub-Ambles.
+Once you've done that, recursively expand the three sections Amble since they may contain curlies & commas 
+and thus sub-Ambles.
 Next, prepend the Preamble to each element of the expanded Amble.
 Then if Postamble doesn't need expanding, just postpend it to each element. Else, recurse-expand it and
 append the results.
 Then space-separated print out result.
 
-PERFORMANCE -------------------------------------
+COMMENTARY -------------------------------------
+This implementation is not clean. I believe that the three sections can be handled by the same recursive block of logic,
+rather than explicitly handling each. It also does not quite work with sub-expansion e.g. a{b,c{d,e}f}g. It does work with
+sequential expansion e.g. a{b,c}d{e,f}g. 
+A tricky part is detecting that commas are present inside the "current" sub string. Not that easy with sub-expansion going on. 
+Again, I believe there's a clean, short solution to that too.
+I'd also like to decompose expand() further.  
+
+Also I'm not sure why I didn't look into using regexp's. It would be a gnarly one (recursion etc.) but would save a lot of code
+and probably be fast to execute once compiled (the regexp, not the code).
+
+RUNTIME PERFORMANCE -------------------------------------
 Assuming reasonable input, the recursion won't present a threat to the stack - it's just not that deep. 
 Add'ing to ArrayList is relatively cheap. Could use StringBuilders but then you're working with more mutable
 objects which makes it more difficult and less flexible.
@@ -52,22 +65,33 @@ dependency inversion) e.g.
 public class BashCartesianProducer {
 	public static final String SEPARATOR_CHAR = ",";
 	private static final ArrayList<String> EMPTY_STRING_LIST = new ArrayList<String>();
-	
+
+	/**
+	 * Example usage of this class
+	 * @param args
+	 */
 	public static void main(String[] args) {
 		BashCartesianProducer p = new BashCartesianProducer();
-		List<String> s = p.expand("a{b,c}d");
+		String t = "a{b,c}d";
+		List<String> s = p.expand(t);
 		String output = p.render(s);
-		System.out.println("TODO " + output);
+		System.out.println("Cartesian product of " + t + ": " + output);
 	}
 	
 	static {
 		EMPTY_STRING_LIST.add("");
 	}
 	
+	/**
+	 * Return a space-concatenated string of a list of strings
+	 */
 	public String render(List<String> s) {
 		return String.join(" ", s);
 	}
 	
+	/**
+	 * Return a space-concatenated string of the bash cartesian product of a string 
+	 */
 	public String render(String s) {
 		return String.join(" ", expand(s));
 	}
@@ -76,8 +100,6 @@ public class BashCartesianProducer {
 	 * expand(s)
 	 * 
 	 * Perform Bash shell catesian product expansion on a string. 
-	 * 
-	 * We do assume that all expandable input strings have correctly balanced curlies i.e. a { will have a }.
 	 * 
 	 * Examples:
 	 * $ echo a{b,c}d{e,f,g}hi
@@ -89,16 +111,15 @@ public class BashCartesianProducer {
 	 * also sub-expansions e.g. ..{a,b{c,d}e}.., both of which cases we handle via recursion. This is described
 	 * above in the class comment.
 	 * 
-	 * !!! The example string we're using in comments throughout the implementation is: ab{cd{e,f}gh}ij{k,l}mn
-	 * @param s the string to expand into a List<String.
-	 * @param sb
-	 * @return
+	 * NOTE The example string we're using in comments throughout this method is: ab{cd{e,f}gh}ij{k,l}mn
+	 * @param s the string to expand into a List<String> bash cartesian product.
+	 * @return cartesian product of s as a list of strings
 	 */
 	public ArrayList<String> expand(String s) {
 		if (s == null || s.isEmpty())
 			return EMPTY_STRING_LIST;
 		
-		int ambleIdx = findOpeningCurlyIdx(s);		
+		int ambleIdx = findOpeningCurlyIdx(s);
 		int postAmbleIdx = findPostAmbleStartIdx(s);	// this would be the ...h}i... one 
 		
 		/////////////////////////////
@@ -106,17 +127,9 @@ public class BashCartesianProducer {
 		// Our example Amble would be cd{e,f}gh 
 		/////////////////////////////
 		// TODO everything wants to be an ArrayList cos of array reification rules (I'd rather pass List<>).
-		ArrayList<String> ambleExpandResult = null;
-		if (ambleIdx != -1) {	// no "amble" if no opening brackets
-			String amb = s.substring(ambleIdx+1, postAmbleIdx-1);	// grab just the Amble text	cd{e,f}gh
-			
-			// If Amble itself has an Amble, recurse... Our example would recurse with {e,f}
-			if (findOpeningCurlyIdx(amb) != -1) {
-				ambleExpandResult = expand(amb);
-			} else {
-				// OK If we're here we know there isn't a sub Amble so split-out by the special char
-				ambleExpandResult = toList(amb.split(SEPARATOR_CHAR));
-			}
+		ArrayList<String> ambleExpandResult = new ArrayList<>();
+		if (ambleIdx != -1 && postAmbleIdx != -1) {	// no "amble" if no opening brackets with matching close
+			addExpandedSubstring(s, ambleIdx, postAmbleIdx, ambleExpandResult);
 		} else {
 			// I *think* we can return now cos there are no curlies at all.
 			// So there wasn't an "Amble" (i.e. curlies) so just add the text. TODO this doesn't feel right.
@@ -129,7 +142,7 @@ public class BashCartesianProducer {
 		// So the only multiple here is Amble. 
 		/////////////////////////////
 	    String preamble = s.substring(0, ambleIdx);  
-	    ArrayList<String> preAmblePlusAmble = prependToEach(ambleExpandResult, preamble);
+	    ArrayList<String> preAmblePlusAmble = prependToEach(ambleExpandResult, expand(preamble));
 
 		/////////////////////////////
 		// OK so we have Amble and PostAmble. Postpend the static part of PostAmble if there is any.
@@ -138,12 +151,7 @@ public class BashCartesianProducer {
 		/////////////////////////////
 	    int idxFirstOpenCurlyPostamble = findOpeningCurlyIdx(postAmbleIdx, s, true);
 	    boolean postambleHasCurly = idxFirstOpenCurlyPostamble != -1;
-	    int idxEndStaticPostamble = 0;
-	    
-	    if (postambleHasCurly)
-	    	idxEndStaticPostamble = idxFirstOpenCurlyPostamble - 1;
-	    else
-	    	idxEndStaticPostamble = s.length() - 1;
+	    int idxEndStaticPostamble = findEndStaticPostAmble(s, idxFirstOpenCurlyPostamble, postambleHasCurly);
 	    
 	    preAmblePlusAmble = postpendToEach(
 	    		preAmblePlusAmble, s.substring(postAmbleIdx, idxEndStaticPostamble + 1));
@@ -156,31 +164,65 @@ public class BashCartesianProducer {
 	    else
 	    	return preAmblePlusAmble;
 	}
-	
-	private ArrayList<String> prependToEach(ArrayList<String> elements, String toAdd) {
-		return concatToEach(elements, toList(toAdd), true);
+
+	/**
+	 * So if you have a{b,c}de{f,g} and you were starting off at idx 0, this would return idx of e - the last non-expandable char
+	 * of the current expandable section. Phew.
+	 * @param s
+	 * @param idxFirstOpenCurlyPostamble
+	 * @param postambleHasCurly
+	 * @return
+	 */
+	private int findEndStaticPostAmble(String s, int idxFirstOpenCurlyPostamble, boolean postambleHasCurly) {
+		int idxEndStaticPostamble = 0;
+	    
+	    if (postambleHasCurly)
+	    	idxEndStaticPostamble = idxFirstOpenCurlyPostamble - 1;
+	    else
+	    	idxEndStaticPostamble = s.length() - 1;
+		return idxEndStaticPostamble;
 	}
 
-	private ArrayList<String> postpendToEach(ArrayList<String> elements, String toAdd) {
+	/**
+	 * Expand the substring and add it to the collection passed in
+	 */
+	private void addExpandedSubstring(String s, int ambleIdx, int postAmbleIdx, ArrayList<String> ambleExpandResult) {
+		String amb = s.substring(ambleIdx+1, postAmbleIdx-1);	// grab just the Amble text	cd{e,f}gh
+		
+		// If Amble itself has an Amble, recurse... Our example would recurse with {e,f}
+		if (findOpeningCurlyIdx(amb) != -1) {
+			ambleExpandResult.addAll(expand(amb));
+		} else {
+			// OK If we're here we know there isn't a sub Amble so split-out by the special char
+			// TODO potentially don't split on inner Ambles' commas
+			// TODO add logic to detect when commas are not present in the curly section cos then it doesn't need expansion
+			ambleExpandResult.addAll(toList(amb.split(SEPARATOR_CHAR)));
+		}
+	}
+	
+	private ArrayList<String> postpendToEach(List<String> elements, String toAdd) {
 		return concatToEach(elements, toList(toAdd), false);
 	}
-
-	private ArrayList<String> postpendToEach(ArrayList<String> elements, ArrayList<String> toAdd) {
-		return concatToEach(elements, toAdd, false);
-	}
 	
-	private ArrayList<String> prependToEach(ArrayList<String> elements, ArrayList<String> toAdd) {
+	private ArrayList<String> prependToEach(List<String> elements, List<String> toAdd) {
 		return concatToEach(elements, toAdd, true);
 	}
-	
-	private ArrayList<String> concatToEach(ArrayList<String> elements, ArrayList<String> toAdd, boolean pre) {
+
+	/**
+	 * Prepend or postpend a list of strings to the elements of another list of strings
+	 * @param elements list to be appended to
+	 * @param toAdd strings to append to elements
+	 * @param pre true == prepend, false == postpend
+	 * @return resulting new list
+	 */
+	private ArrayList<String> concatToEach(List<String> elements, List<String> toAdd, boolean pre) {
 		ArrayList<String> result = new ArrayList<>();
 		if (toAdd == null || toAdd.isEmpty())
 			return result;
 		
-		// TODO use map or some other builtin function to make the product
-		for (String e : elements)
-			for (String t : toAdd) 
+		// TODO use streams map or some other J8 builtin function to make the product
+		for (String t : toAdd) 
+			for (String e : elements)
 				result.add(pre ? t + e : e + t);
 		
 		return result;
@@ -189,11 +231,14 @@ public class BashCartesianProducer {
 	private int findOpeningCurlyIdx(String s) {
 		return s.substring(0).indexOf('{');
 	}
-	
-	private boolean hasOpeningCurly(int startIdx, String s) {
-		return findOpeningCurlyIdx(startIdx, s, false) != -1;
-	}
-	
+
+	/**
+	 * Finds index of first opening curly or -1 if not present
+	 * @param startIdx where to start looking from
+	 * @param s target string
+	 * @param addStartIdx true == append start index to result, false == don't
+	 * @return idx of first open curly
+	 */
 	private int findOpeningCurlyIdx(int startIdx, String s, boolean addStartIdx) {
 		// TODO add startIdx?
 		int idx = s.substring(startIdx).indexOf('{');
@@ -204,7 +249,7 @@ public class BashCartesianProducer {
 	}
 	
 	int findMatchingClosingCurlyIdx(String s) {
-		return findClosingCurlyIdx(0, s);
+		return findMatchingClosingCurlyIdx(0, s);
 	}
 	
 	int findPostAmbleStartIdx(String s) {
@@ -214,12 +259,12 @@ public class BashCartesianProducer {
 	
 	/**
 	 * Given a string (say ab{c,d{e,f}gh}ij, return the index of the ..h}i.. bracket i.e. the closing bracket
-	 * that matches the first opening bracket.
-	 * @param startIdx
-	 * @param s
-	 * @return
+	 * that matches the first opening bracket. 
+	 * @param startIdx where to start searching from
+	 * @param s target string
+	 * @return as above.
 	 */
-	public int findClosingCurlyIdx(int startIdx, String s) {
+	public int findMatchingClosingCurlyIdx(int startIdx, String s) {
 		int idxOpener = findOpeningCurlyIdx(startIdx, s, false);
 		if (idxOpener == -1)
 			return -1;
